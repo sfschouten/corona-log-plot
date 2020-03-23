@@ -1,0 +1,268 @@
+<!--
+Copyright 2020 Stefan F. Schouten 
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
+
+<html>
+    <head>
+        <title>Log Covid-19</title>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+        <script type="text/javascript" src="moment.js"></script>
+        <script type="text/javascript" src="Chart.js"></script>
+        <script type="text/javascript" src="papaparse.min.js"></script>
+    </head>
+    <body>
+        <canvas id="coronaChart" width="1280" height="600"></canvas>
+        <p>This is a chart to compare the number of cumulative cases over time for different countries. On the x-axis we have the number of days since a threshold (100 by default) of cases has been crossed. This threshold can be adjusted by the 'min_cases' url parameter (<a href="/corona?min_cases=100">100</a>, <a href="/corona?min_cases=200">200</a>, <a href="/corona?min_cases=300">300</a>). </p> 
+        <p>We find the point at which a country crossed the threshold by interpolation. Because this is a logarithmic plot, we linearly interpolate between the log of the two datapoints closest to threshold. Countries where the amount of cases has not yet exceeded the threshold are omitted.</p>
+        <p>The information in this chart is from the <a href="https://github.com/CSSEGISandData/COVID-19">dataset maintained by the Johns Hopkins CSSE</a>; unfortunately something went wrong with March 12th's update of the dataset, for a number of countries the number of cases did not get updated and therefore repeats the number of cases from March 11th.</p>
+        <p>I'll try and continue to improve this chart, for example right now it does not include country totals; only the subdivisions are shown. Also if you want to be able to compare to Hubei (China), you'll need to set the min_cases to <a href="/corona?min_cases=444">444</a>.</p>
+        <p>Thanks to <a href="https://twitter.com/jburnmurdoch">@jburnmurdoch</a> for the inspiration.</p>
+        <p>My twitter: <a href="https://twitter.com/Stefannn93">@stefannn93</a>.</p>
+        <canvas id="coronaChart_death" width="1280" height="600"></canvas>
+        <script>
+            defaultCountries = new Set([   
+                "Italy_", 
+                "Netherlands_", 
+            ]);
+            
+            function getURLVars() {
+                var vars = {};
+                var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+                    vars[key] = value;
+                });
+                return vars;
+            }
+
+            url_vars = getURLVars();
+
+            MIN_CASES = parseInt(url_vars['min_cases']) || 100;
+
+            WHICH_DATA = url_vars['data'] || 'cumulative';
+
+            function getRandom(seed) {
+                function xmur3(str) {
+                    for(var i = 0, h = 1779033703 ^ str.length; i < str.length; i++)
+                        h = Math.imul(h ^ str.charCodeAt(i), 3432918353),
+                        h = h << 13 | h >>> 19;
+                    return function() {
+                        h = Math.imul(h ^ h >>> 16, 2246822507);
+                        h = Math.imul(h ^ h >>> 13, 3266489909);
+                        return (h ^= h >>> 16) >>> 0;
+                    }
+                }
+                function sfc32(a, b, c, d) {
+                    return function() {
+                      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0; 
+                      var t = (a + b) | 0;
+                      a = b ^ b >>> 9;
+                      b = c + (c << 3) | 0;
+                      c = (c << 21 | c >>> 11);
+                      d = d + 1 | 0;
+                      t = t + d | 0;
+                      c = c + t | 0;
+                      return (t >>> 0) / 4294967296;
+                    }
+                }
+                seed = xmur3(seed);
+                return sfc32(seed(), seed(), seed(), seed())();
+            }
+            function getDataFromLine(line) {
+                let data = new Array(dates.length);
+                for (let i = 0; i < dates.length; i++) {
+                    data[i] = line[dates[i]];
+                }
+                return data;
+            }
+
+            function makeID(country, state) {
+                return country + "_" + state;
+            }
+            function makeName(country, state) {
+                return country + (state.length == 0 ? "" : " (" + state + ")");
+            }
+
+            function addLine(config, country, state) {
+                let id = makeID(country, state);
+                let line = added.find(line => line['Country/Region'] == country && line['Province/State'] == state);
+                let first_date = first_dates[id];
+                
+                let before = Math.log(MIN_CASES) - Math.log(line[dates[first_date-1]]);
+                let after = Math.log(line[dates[first_date]]) - Math.log(MIN_CASES);
+                let amount = before / (before + after);
+                var hundred = moment(moment_dates[first_date-1]);
+                hundred.add(amount * (moment_dates[first_date].toDate() - moment_dates[first_date-1].toDate()), 'milliseconds');
+                
+                config.options.scales.xAxes.push({
+                    id: makeID(country, state),
+                    display: false,
+                    type: 'time',
+                    time: {
+                        tooltipFormat: 'll'
+                    },
+                    scaleLabel: {
+                        display: false,
+                        labelString: 'Date'
+                    },
+                    ticks: {
+                        min: hundred.toDate(), 
+                        max: hundred.add(dates.length - minFirst, 'days').toDate(),
+                        display: false,
+                    },
+                });
+
+                let R =  ((parseFloat(line['Lat']) + 180) * 127) / 360 + getRandom(id+'r') * 128;
+                let G = ((parseFloat(line['Long']) + 180) * 127) / 360 + getRandom(id+'g') * 128;
+                let B = 255 * getRandom(id+'b');
+                config.data.datasets.push({
+                    id: country + "_" + state,
+                    hidden: !defaultCountries.has(id),
+                    label: makeName(line['Country/Region'], line['Province/State']),
+                    lineTension: 0,
+                    clip: false,
+                    fill: false,
+                    borderColor: 'rgba('+R+','+G+','+B+',0.5)',
+                    data: getDataFromLine(line),
+                    xAxisID: makeID(country, state),
+                },);
+
+                return config;
+            }
+
+
+            function drawGraph() {
+                var ctx = $( "#coronaChart" )[0].getContext('2d');
+                
+               
+                // Create GLOBAL moment_dates variable.
+                moment_dates = new Array(dates.length)
+                for (let i = 0; i < moment_dates.length; i++) {
+                    moment_dates[i] = moment(dates[i]);
+                }
+                
+                var config = {
+                    type: 'line',
+                    data: {
+                        labels: moment_dates.map(date => date.toDate()),
+                        datasets: [],
+                    },
+                    options: {
+                        responsive: true,
+                        title: {},
+                        legend: {
+                            position: 'bottom',
+                        },
+                        scales: {
+                            xAxes: [],
+                            yAxes: [{
+                                type: 'logarithmic',
+                                ticks: {
+                                    min: MIN_CASES / 2,
+                                },
+                                scaleLabel: {
+                                    display: true,
+                                    labelString: 'cumulative cases'
+                                }
+                            }]
+                        }
+                    }
+                };
+
+                function initCountry(country, state) {
+                    //console.log("Adding: " + makeName(country, state));
+                    addLine(config, country, state);
+                }
+                
+                added.forEach(x => initCountry(x['Country/Region'], x['Province/State']));
+
+                // Create GLOBAL myChart variable
+                myChart = new Chart(ctx, config);
+            }
+
+            // Retrieve data
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    // Create GLOBAL data variable.
+                    data = Papa.parse(this.responseText, {header: true}).data;
+                    
+                    // Create GLOBAL dates variable.
+                    dates = Object.keys(data[0]).slice(4);
+                   
+                    // Add totals for countries with subnation divisions.
+                    let subdivided = new Set(data.filter(x => x['Province/State'] != "").map(x => x['Country/Region']));
+                    subdivided.forEach(x => {
+                        let subdivisions = data.filter(z => z['Country/Region'] == x).map(z => Object.entries(z));
+                        total = subdivisions.reduce((acc, val) => {
+                            acc_ = acc.slice(4);
+                            val_ = val.slice(4);
+                            acc_.forEach((y,i) => y[1] = parseInt(y[1]) + parseInt(val_[i][1]));
+                            return acc;
+                        });
+                        total = Object.fromEntries(total);
+                        total['Country/Region'] = x;
+                        total['Province/State'] = "Total";
+                        total['Lat'] = "-180";
+                        total['Long'] = "-180";
+                        data.push(total);
+                        if (x == "US") {
+                            console.log(total);
+                        }
+                    });
+
+                    // Create GLOBAL first_dates variable.
+                    first_dates = [];
+                    for (let j = 0; j < data.length; j++) {
+                        let line = data[j];
+                        first_dates[line['Country/Region']] = dates.length;
+                        for (let i = 0; i < dates.length; i++) {
+                            if (line[dates[i]] > MIN_CASES) {
+                                id = makeID(line['Country/Region'], line['Province/State']);
+                                first_dates[id] = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    
+                    // Create GLOBAL added variable.
+                    added = data.filter(x => x[dates[dates.length-1]] > MIN_CASES);
+                    added = added.filter(x => x[dates[0]] <= MIN_CASES);
+
+                    added.sort((a,b) => makeName(a['Country/Region'], a['Province/State']).localeCompare(makeName(b['Country/Region'], b['Province/State'])));
+
+                    // Create GLOBAL minFirst variable
+                    minFirst = dates.length;
+                    for (let i = 0; i < added.length; i++) {
+                        let country = added[i]['Country/Region'];
+                        let state = added[i]['Province/State'];
+                        let first = first_dates[makeID(country, state)];
+                        if (first < minFirst) {
+                            minFirst = first
+                        }
+                    }
+
+                    drawGraph();
+                }
+            };
+            switch(WHICH_DATA){
+                case "cumulative":
+                    xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv");
+                    break;
+                case "recovered":
+                    xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv");
+                    break;
+                case "deaths":
+                    xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Deaths.csv");
+                    break;
+            }
+            xhttp.send();
+
+        </script>
+    </body>
+</html>
