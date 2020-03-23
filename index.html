@@ -184,9 +184,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 myChart = new Chart(ctx, config);
             }
 
-            // Retrieve data
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function() {
+            function initData() {
                 if (this.readyState == 4 && this.status == 200) {
                     // Create GLOBAL data variable.
                     data = Papa.parse(this.responseText, {header: true}).data;
@@ -249,9 +247,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
                     drawGraph();
                 }
-            };
+            }
+            
+            // Retrieve data
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = initData; 
             switch(WHICH_DATA){
                 case "cumulative":
+                    xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv");
+                    break;
+                case "active":
                     xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv");
                     break;
                 case "recovered":
