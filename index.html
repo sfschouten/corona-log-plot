@@ -21,11 +21,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         
         <p>
         This is a chart to compare the statistics of COVID-19 over time for different countries on a logarithmic plot. 
-        By default the data displayed is the number of deaths.
+        By default the data displayed is <a href="/corona?data=deaths&min_cases=10">the number of deaths</a>.
         <br/>
-        The <a href="/corona?data=cumulative&min_cases=100">confirmed amount of cases</a> is also available (note that testing is done with different strategies and that these numbers are not always comparable).
+        The <a href="/corona?data=cumulative&min_cases=200">confirmed amount of cases</a> is available too (note that testing is done with different strategies and that these numbers are not always comparable).
+        And finally we have the <a href="/corona?data=recovered">number of recovered</a> (not all countries report this reliably).
         </p> <p>
-        On the x-axis we have the number of days since a threshold (100 by default) has been crossed. 
+        On the x-axis we have the number of days since a threshold has been crossed. 
         This threshold can be adjusted by the 'min_cases' url parameter (
             <a href="/corona?min_cases=10">10</a>,
             <a href="/corona?min_cases=20">20</a>, 
@@ -34,13 +35,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             <a href="/corona?min_cases=200">200</a>, 
             <a href="/corona?min_cases=500">500</a>  ). <br/> 
         Countries where the data has not yet exceeded the threshold are omitted. <br/>
-        For example, if you want to be able to compare to Hubei (China), you'll need to set the min_cases to at least <a href="/corona?min_cases=444">444</a>. </br>
+        For example, if you want to be able to compare the number of confirmed cases to Hubei (China), you'll need to set the min_cases to at least <a href="/corona?min_cases=444">444</a>. </br>
         </p> <p>
         We find the point at which a country crossed the threshold by interpolation. 
         Because this is a logarithmic plot, we linearly interpolate between the log of the two datapoints closest to threshold. 
         </p> <p>
         The information in this chart is from the <a href="https://github.com/CSSEGISandData/COVID-19">dataset maintained by the Johns Hopkins CSSE</a>; 
-        unfortunately something went wrong with March 12th's update of the dataset, for a number of countries the data did not get updated and therefore repeats the numbers from March 11th.
+        unfortunately something went wrong with March 12th's update of the dataset, for a number of countries the data did not get updated and therefore repeats the numbers from March 11th.<br/>
         There might be more errors that I am not aware of.
         </p>
         
@@ -186,6 +187,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                                 type: 'logarithmic',
                                 ticks: {
                                     min: MIN_CASES / 2,
+                                    callback: function(value, index, values) {
+                                        return value.toLocaleString()
+                                    }
                                 },
                                 scaleLabel: {
                                     display: true,
