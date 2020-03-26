@@ -24,6 +24,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         By default the data displayed is <a href="/corona?data=deaths&min_cases=10">the number of deaths</a>.
         <br/>
         The <a href="/corona?data=cumulative&min_cases=200">confirmed amount of cases</a> are available as well (note that testing is done with different strategies and that these numbers are not always comparable).
+        And finally we have the <a href="/corona?data=recovered&min_cases=20">number of recovered</a>, although this data seems far from up to date for a lot of countries as well.
         </p> <p>
         On the x-axis we have the number of days since a threshold has been crossed. 
         This threshold can be adjusted by the 'min_cases' url parameter (
@@ -283,6 +284,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
                 case "deaths":
                     xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv");
                     break;
+                case "recovered":
+                    xhttp.open("GET", "/corona/COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv");
+                    break;
+
             }
             xhttp.send();
 
